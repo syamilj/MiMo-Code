@@ -997,7 +997,7 @@ export const layer = Layer.effect(
         yield* fs.writeFileString(file, updated).pipe(Effect.orDie)
       }
 
-      yield* invalidate()
+      yield* invalidate(true)
       return next
     })
 

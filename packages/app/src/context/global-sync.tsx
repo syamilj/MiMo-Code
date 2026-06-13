@@ -349,6 +349,9 @@ function createGlobalSync() {
 
   async function bootstrap() {
     bootingRoot = true
+    // Invalidate React Query caches so fetchQuery makes real API calls
+    queryClient.invalidateQueries({ queryKey: [null, "providers"] })
+    queryClient.invalidateQueries({ queryKey: [null, "agents"] })
     try {
       await bootstrapGlobal({
         globalSDK: globalSDK.client,

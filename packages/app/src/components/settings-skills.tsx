@@ -19,7 +19,7 @@ function groupLabel(path: string): string {
   if (path.includes(".claude")) return "Claude Code"
   if (path.includes(".mimocode") || path.includes(".mimo")) return "MiMoCode"
   if (path.includes(".codex")) return "Codex"
-  if (path.includes(".opencode")) return "OpenCode"
+  if (path.includes(".opencode")) return "MiMoCode"
   if (path.includes(".agents")) return "Agents"
   return "Project"
 }
