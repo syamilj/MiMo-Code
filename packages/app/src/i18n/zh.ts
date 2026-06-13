@@ -750,6 +750,9 @@ export const dict = {
 
   "settings.models.title": "模型",
   "settings.models.description": "模型设置将在此处可配置。",
+  "settings.skills.title": "技能",
+  "settings.skills.description": "已启用 {{enabled}}/{{total}} 个技能。禁用技能可阻止 agent 使用。",
+  "settings.skills.empty": "未找到技能。",
 
   "settings.agents.title": "智能体",
   "settings.agents.description": "智能体设置将在此处可配置。",

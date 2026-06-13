@@ -2,6 +2,7 @@ import { Effect } from "effect"
 import path from "path"
 import { createHash } from "node:crypto"
 import { appendFileSync, mkdirSync } from "node:fs"
+import * as fsp from "node:fs/promises"
 import { Database, eq, desc } from "../storage"
 import { WorkflowRunTable } from "./workflow.sql"
 import { Global } from "../global"
@@ -231,10 +232,10 @@ const writeScript = (runID: string, body: string) =>
   Effect.promise(async () => {
     const fs = await import("fs/promises")
     await fs.mkdir(scriptDir(), { recursive: true })
-    await Bun.write(scriptPath(runID), body)
+    await fsp.writeFile(scriptPath(runID), body)
   })
 
-const readScript = (runID: string) => Effect.promise(() => Bun.file(scriptPath(runID)).text())
+const readScript = (runID: string) => Effect.promise(() => fsp.readFile(scriptPath(runID), "utf8"))
 
 const appendJournal = (runID: string, event: JournalEvent) =>
   Effect.promise(async () => {
@@ -262,9 +263,9 @@ const appendJournalSync = (runID: string, events: JournalEvent[]) =>
 
 const loadJournal = (runID: string): Effect.Effect<JournalLoad> =>
   Effect.promise(async () => {
-    const file = Bun.file(journalPath(runID))
-    if (!(await file.exists())) return { results: new Map(), pass: 1 }
-    const text = await file.text()
+    const jpath = journalPath(runID)
+    if (!(await fsp.access(jpath).then(() => true).catch(() => false))) return { results: new Map(), pass: 1 }
+    const text = await fsp.readFile(jpath, "utf8")
     const results = new Map<string, unknown>()
     let maxPass = 0
     for (const line of text.split("\n")) {
@@ -293,7 +294,7 @@ const clearJournal = (runID: string) =>
   Effect.promise(async () => {
     const fs = await import("fs/promises")
     await fs.mkdir(scriptDir(), { recursive: true })
-    await Bun.write(journalPath(runID), "")
+    await fsp.writeFile(journalPath(runID), "")
   })
 
 export const WorkflowPersistence = {

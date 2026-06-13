@@ -2,6 +2,9 @@ import os from "os"
 import path from "path"
 import { pathToFileURL } from "url"
 import z from "zod"
+import { existsSync } from "fs"
+import { readFile } from "fs/promises"
+import { parse as parseJsonc } from "jsonc-parser"
 import { Effect, Layer, Context } from "effect"
 import { NamedError } from "@mimo-ai/shared/util/error"
 import type { Agent } from "@/agent/agent"
@@ -225,6 +228,24 @@ const loadSkills = Effect.fnUntraced(function* (state: State, discovered: Discov
   log.info("init", { count: Object.keys(state.skills).length })
 })
 
+async function readDisabledFromFile(): Promise<string[]> {
+  const dir = Global.Path.config
+  const candidates = ["mimocode.jsonc", "mimocode.json", "config.json"]
+  for (const file of candidates) {
+    const fp = path.join(dir, file)
+    if (!existsSync(fp)) continue
+    try {
+      const content = await readFile(fp, "utf8")
+      const parsed = parseJsonc(content)
+      const disabled = parsed.skills?.disabled
+      if (Array.isArray(disabled)) return disabled
+    } catch (e) {
+      log.error("failed to read disabled skills from config", { file, err: String(e) })
+    }
+  }
+  return []
+}
+
 export class Service extends Context.Service<Service, Interface>()("@opencode/Skill") {}
 
 export const layer = Layer.effect(
@@ -261,15 +282,20 @@ export const layer = Layer.effect(
       return (yield* InstanceState.get(discovered)).dirs
     })
 
-    const available = Effect.fn("Skill.available")(function* (agent?: Agent.Info) {
-      const s = yield* InstanceState.get(state)
-      let list: Info[] = Object.values(s.skills)
-        .filter((sk) => !sk.hidden)
+    const available = (agent?: Agent.Info) =>
+      Effect.gen(function* () {
+        const s = yield* InstanceState.get(state)
+        const disabledFile = yield* Effect.promise(() =>
+          readDisabledFromFile().catch(() => [] as string[]),
+        )
+        const disabled = new Set(disabledFile)
+        let list: Info[] = Object.values(s.skills)
+          .filter((sk) => !sk.hidden && !disabled.has(sk.name))
 
-      list = list.toSorted((a, b) => a.name.localeCompare(b.name))
-      if (!agent) return list
-      return list.filter((skill) => Permission.evaluate("skill", skill.name, agent.permission).action !== "deny")
-    })
+        list = list.toSorted((a, b) => a.name.localeCompare(b.name))
+        if (!agent) return list
+        return list.filter((skill) => Permission.evaluate("skill", skill.name, agent.permission).action !== "deny")
+      })
 
     return Service.of({ get, all, dirs, available })
   }),

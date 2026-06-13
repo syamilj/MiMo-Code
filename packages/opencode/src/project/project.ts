@@ -26,10 +26,10 @@ async function setupProjectIdEnvironment(workingDir: string): Promise<void> {
   const localFile = nodePath.join(workingDir, ".mimocode-project-id")
   const idFile = nodePath.join(mainGit, "mimocode-project-id")
 
-  if (await Bun.file(localFile).exists()) {
-    if (!(await Bun.file(idFile).exists())) {
-      const id = await Bun.file(localFile).text()
-      await Bun.write(idFile, id)
+  if (await nodeFs.access(localFile).then(() => true).catch(() => false)) {
+    if (!(await nodeFs.access(idFile).then(() => true).catch(() => false))) {
+      const id = await nodeFs.readFile(localFile, "utf8")
+      await nodeFs.writeFile(idFile, id)
     }
     await nodeFs.unlink(localFile).catch(() => {})
   }
@@ -37,8 +37,7 @@ async function setupProjectIdEnvironment(workingDir: string): Promise<void> {
   // Belt-and-suspenders: ensure .git/info/exclude lists .mimocode-project-id
   const excludeFile = nodePath.join(mainGit, "info", "exclude")
   await nodeFs.mkdir(nodePath.dirname(excludeFile), { recursive: true })
-  const existing = await Bun.file(excludeFile)
-    .text()
+  const existing = await nodeFs.readFile(excludeFile, "utf8")
     .catch(() => "")
   if (!existing.includes(".mimocode-project-id")) {
     await nodeFs.appendFile(excludeFile, "\n.mimocode-project-id\n")

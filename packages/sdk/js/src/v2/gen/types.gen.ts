@@ -1897,6 +1897,10 @@ export type Config = {
      * URLs to fetch skills from (e.g., https://example.com/.well-known/skills/)
      */
     urls?: Array<string>
+    /**
+     * Skill names that are disabled and should not be available to agents
+     */
+    disabled?: Array<string>
   }
   watcher?: {
     ignore?: Array<string>
