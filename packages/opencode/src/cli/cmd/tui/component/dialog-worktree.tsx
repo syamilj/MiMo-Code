@@ -2,6 +2,7 @@ import { createMemo, createSignal, onMount } from "solid-js"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogSelect } from "@tui/ui/dialog-select"
 import { useSDK } from "../context/sdk"
+import { useProject } from "../context/project"
 import { useSync } from "@tui/context/sync"
 import { useRoute } from "@tui/context/route"
 import { useToast } from "../ui/toast"
@@ -12,6 +13,7 @@ const CREATE_SENTINEL = "__create_worktree__"
 export function DialogWorktree() {
   const dialog = useDialog()
   const sdk = useSDK()
+  const project = useProject()
   const sync = useSync()
   const route = useRoute()
   const toast = useToast()
@@ -55,6 +57,9 @@ export function DialogWorktree() {
     setBusy("Switching to worktree...")
     await sdk.client.instance.dispose().catch(() => {})
     sdk.switchDirectory(directory)
+    await project.workspace.sync()
+    const next = project.workspace.list().find((w) => w.directory === directory)
+    if (next) project.workspace.set(next.id)
     await sync.bootstrap()
     route.navigate({ type: "home" })
     dialog.clear()

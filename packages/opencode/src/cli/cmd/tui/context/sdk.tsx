@@ -141,6 +141,12 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
       switchDirectory(next: string) {
         currentDirectory = next
         sdk = createSDK(next)
+        queue = []
+        if (timer) {
+          clearTimeout(timer)
+          timer = undefined
+        }
+        if (!props.events) startSSE()
       },
       event: emitter,
       fetch: props.fetch ?? fetch,
