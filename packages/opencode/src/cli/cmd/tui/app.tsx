@@ -17,6 +17,7 @@ import {
 import { win32DisableProcessedInput, win32InstallCtrlCGuard } from "./win32"
 import { Flag } from "@/flag/flag"
 import semver from "semver"
+import { checkForUpdates, updateStatusAccessor } from "../update"
 import { DialogProvider, useDialog } from "@tui/ui/dialog"
 import { DialogMimoLogin } from "@tui/component/dialog-mimo-login"
 import { ErrorComponent } from "@tui/component/error-component"
@@ -27,6 +28,7 @@ import { SDKProvider, useSDK } from "@tui/context/sdk"
 import { StartupLoading } from "@tui/component/startup-loading"
 import { SyncProvider, useSync } from "@tui/context/sync"
 import { LocalProvider, useLocal } from "@tui/context/local"
+import { UpdateContext } from "@tui/context/update"
 import { DialogModel, useConnected } from "@tui/component/dialog-model"
 import { DialogMcp } from "@tui/component/dialog-mcp"
 import { DialogStatus } from "@tui/component/dialog-status"
@@ -195,7 +197,9 @@ export function tui(input: {
                                         <FrecencyProvider>
                                           <PromptHistoryProvider>
                                             <PromptRefProvider>
-                                              <App onSnapshot={input.onSnapshot} />
+                                              <UpdateContext.Provider value={{ status: updateStatusAccessor }}>
+                                                <App onSnapshot={input.onSnapshot} />
+                                              </UpdateContext.Provider>
                                             </PromptRefProvider>
                                           </PromptHistoryProvider>
                                         </FrecencyProvider>
@@ -371,6 +375,13 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
           sessionID: args.sessionID,
         })
       }
+    })
+    // Kick off a non-blocking upstream check; the sidebar indicator reads from
+    // the cached status via getUpdateStatus(), so a slow network never blocks
+    // the TUI from rendering. The cache itself becomes reactive because we
+    // wrap it in an accessor on the consumer side.
+    void checkForUpdates().catch(() => {
+      /* update check failures are non-fatal */
     })
   })
 

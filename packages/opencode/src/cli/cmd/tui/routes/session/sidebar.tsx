@@ -4,6 +4,7 @@ import { createMemo, Show } from "solid-js"
 import { useTheme } from "../../context/theme"
 import { useTuiConfig } from "../../context/tui-config"
 import { InstallationChannel, InstallationVersion } from "@/installation/version"
+import { useUpdate } from "@tui/context/update"
 import { TuiPluginRuntime } from "../../plugin"
 
 import { getScrollAcceleration } from "../../util/scroll"
@@ -13,6 +14,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const sync = useSync()
   const { theme } = useTheme()
   const tuiConfig = useTuiConfig()
+  const update = useUpdate()
   const session = createMemo(() => sync.session.get(props.sessionID))
   const workspaceStatus = () => {
     const workspaceID = session()?.workspaceID
@@ -88,6 +90,12 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 <b>Code</b>
               </span>{" "}
               <span>{InstallationVersion}</span>
+              <Show when={update.status().state === "behind"}>
+                <span style={{ fg: theme.warning }}> ● update available</span>
+              </Show>
+              <Show when={update.status().state === "checking"}>
+                <span style={{ fg: theme.textMuted }}> ● checking…</span>
+              </Show>
             </text>
           </TuiPluginRuntime.Slot>
         </box>

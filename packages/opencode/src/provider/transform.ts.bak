@@ -505,28 +505,14 @@ export function variants(model: Provider.Model): Record<string, Record<string, a
   if (!model.capabilities.reasoning) return {}
 
   const id = model.id.toLowerCase()
-
-  // Early-return for MiniMax M3: expose on/off thinking toggle
-  if (
-    model.api.id.toLowerCase().includes("minimax-m3") &&
-    ["@ai-sdk/anthropic", "@ai-sdk/openai-compatible"].includes(model.api.npm)
-  ) {
-    return {
-      none: { thinking: { type: "disabled" } },
-      thinking: { thinking: { type: "adaptive" } },
-    }
-  }
-
   const adaptiveEfforts = anthropicAdaptiveEfforts(model.api.id)
   if (
-    id.includes("deepseek-chat") ||
-    id.includes("deepseek-reasoner") ||
-    id.includes("deepseek-r1") ||
-    id.includes("deepseek-v3") ||
+    id.includes("deepseek") ||
     id.includes("minimax") ||
     id.includes("glm") ||
+    id.includes("mistral") ||
     id.includes("kimi") ||
-    id.includes("k2p") ||
+    id.includes("k2p5") ||
     id.includes("qwen") ||
     id.includes("big-pickle")
   )
@@ -969,12 +955,6 @@ export function options(input: {
 
   // Enable thinking by default for kimi-k2.5/k2p5 models using anthropic SDK
   const modelId = input.model.api.id.toLowerCase()
-
-  // MiniMax's Anthropic interface defaults thinking off, unlike Chat Completions.
-  if (modelId.includes("minimax-m3") && input.model.api.npm === "@ai-sdk/anthropic") {
-    result["thinking"] = { type: "adaptive" }
-  }
-
   if (
     (input.model.api.npm === "@ai-sdk/anthropic" || input.model.api.npm === "@ai-sdk/google-vertex/anthropic") &&
     (modelId.includes("k2p5") || modelId.includes("kimi-k2.5") || modelId.includes("kimi-k2p5"))
@@ -1258,84 +1238,6 @@ export function schema(model: Provider.Model, schema: JSONSchema.BaseSchema | JS
   // Flatten unconditionally — all providers accept a flat `type: "object"` schema,
   // and zod's runtime parse still enforces per-variant required fields strictly.
   schema = flattenDiscriminatedUnion(schema)
-
-  // Moonshot/Kimi-specific schema sanitization. MFJS (Moonshot Flavored JSON
-  // Schema) is stricter than JSON Schema:
-  // - $ref must be the only keyword on a node (no siblings like description)
-  // - items must be a single object, not a tuple array
-  // - anyOf/oneOf items must each carry a `type` — Moonshot rejects when the
-  //   type is left on the parent and anyOf items are typeless.
-  if (model.providerID === "moonshotai" || model.api.id.toLowerCase().includes("kimi")) {
-    const sanitizeMoonshot = (obj: unknown): unknown => {
-      if (obj === null || typeof obj !== "object") return obj
-      if (Array.isArray(obj)) return obj.map(sanitizeMoonshot)
-      if ("$ref" in obj && typeof (obj as any).$ref === "string") return { $ref: (obj as any).$ref }
-      const result: Record<string, unknown> = Object.fromEntries(
-        Object.entries(obj).map(([key, value]) => [key, sanitizeMoonshot(value)]),
-      )
-      // MFJS does not support tuple-style `items` arrays; require a single schema.
-      if (Array.isArray((result as any).items)) (result as any).items = (result as any).items[0] ?? {}
-      // Moonshot rejects anyOf/oneOf where items don't carry a `type` of their
-      // own. Infer the type from sibling signals (parent type, item enum/const,
-      // schema-level type) and fall back to "string" — Moonshot's MFJS requires
-      // every anyOf item to declare a type, and the vast majority of typeless
-      // anyOf cases in tool schemas are string unions.
-      for (const combiner of ["anyOf", "oneOf", "allOf"] as const) {
-        const list = (result as any)[combiner]
-        if (!Array.isArray(list)) continue
-
-        // Special case: all items are pure string consts — collapse to a flat
-        // `enum`. MFJS is happiest with `enum` on a typed string; const-based
-        // anyOf unions are what triggers the "type in anyOf items" rejection.
-        if (
-          list.every(
-            (it) =>
-              it &&
-              typeof it === "object" &&
-              !Array.isArray(it) &&
-              (it as any).type === undefined &&
-              "const" in (it as any) &&
-              typeof (it as any).const === "string",
-          )
-        ) {
-          ;(result as any).type = "string"
-          ;(result as any).enum = list.map((it: any) => it.const)
-          delete (result as any)[combiner]
-          continue
-        }
-
-        const parentType = typeof (result as any).type === "string" ? (result as any).type : undefined
-        for (const item of list) {
-          if (!item || typeof item !== "object" || Array.isArray(item)) continue
-          if ((item as any).type !== undefined) continue
-          // Try to infer from the item itself first.
-          let inferred: string | undefined
-          if (Array.isArray((item as any).enum) || "const" in (item as any)) inferred = "string"
-          else if (Array.isArray((item as any).properties) || (item as any).properties) inferred = "object"
-          else if ("items" in (item as any)) inferred = "array"
-          ;(item as any).type = inferred ?? parentType ?? "string"
-        }
-        // Moonshot also rejects when the parent carries a `type` alongside an
-        // anyOf/oneOf — the type must live on each item, not on the parent.
-        // Drop the parent's type so MFJS doesn't double-read it.
-        if (
-          (result as any).type !== undefined &&
-          list.some(
-            (it: any) =>
-              it && typeof it === "object" && !Array.isArray(it) && (it as any).type !== undefined,
-          )
-        ) {
-          delete (result as any).type
-        }
-      }
-      return result
-    }
-
-    const sanitized = sanitizeMoonshot(schema)
-    if (typeof sanitized === "object" && sanitized !== null && !Array.isArray(sanitized)) {
-      schema = sanitized as JSONSchema7
-    }
-  }
 
   // Convert integer enums to string enums for Google/Gemini
   if (model.providerID === "google" || model.api.id.includes("gemini")) {
