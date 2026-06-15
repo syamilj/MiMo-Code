@@ -138,6 +138,10 @@ const InfoSchema = Schema.Struct({
   small_model: Schema.optional(ConfigModelID).annotate({
     description: "Small model to use for tasks like title generation in the format of provider/model",
   }),
+  default_context_window: Schema.optional(PositiveInt).annotate({
+    description:
+      "Default context window size (in tokens) for models that don't have an explicit limit.context configured and aren't found in the model database. Defaults to 128000.",
+  }),
   model_groups: Schema.optional(
     Schema.Record(
       Schema.String,
