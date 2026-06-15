@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js"
+import type { Accessor } from "solid-js"
 import { create as createLog } from "../../util/log"
 
 const log = createLog({ service: "update-check" })
@@ -10,13 +11,33 @@ export type UpdateStatus =
   | { state: "behind"; behindBy: number; log: string; remoteUrl: string }
   | { state: "error"; message: string }
 
-const [statusSignal, setStatusSignal] = createSignal<UpdateStatus>({ state: "idle" })
-
-export function getUpdateStatus(): UpdateStatus {
-  return statusSignal()
+// Signal + setter are lazily created on first access. Module-top-level
+// initialization is unreliable in Bun's bundler runtime when this module is
+// imported from outside (e.g. another package's entry), so we defer to first
+// call instead.
+let _statusSignal: Accessor<UpdateStatus> | null = null
+let _statusSetter: ((v: UpdateStatus) => void) | null = null
+function getStatusSignal(): Accessor<UpdateStatus> {
+  if (!_statusSignal) {
+    const [get, set] = createSignal<UpdateStatus>({ state: "idle" })
+    _statusSignal = get
+    _statusSetter = set as (v: UpdateStatus) => void
+  }
+  return _statusSignal
+}
+function setStatusSignal(v: UpdateStatus): void {
+  if (!_statusSetter) getStatusSignal()
+  _statusSetter!(v)
 }
 
-export const updateStatusAccessor = statusSignal
+export function getUpdateStatus(): UpdateStatus {
+  return getStatusSignal()()
+}
+
+export const updateStatusAccessor = (() => {
+  // Wrap so callers can pass a stable reference to <Provider value={{ status }}>
+  return () => getStatusSignal()()
+})()
 
 function exec(
   cmd: string,
@@ -96,14 +117,13 @@ function findRepoRoot(): string | null {
 }
 
 /**
- * Non-blocking update check. Compares HEAD against each candidate
- * upstream in priority order (upstream → origin → sst) and reports the
- * first one that has any behind commits. If all are at parity, status is
- * `up-to-date`. The sst/opencode dev branch is the most actively changing
- * base, so it's last but most likely to actually report "behind".
+ * Non-blocking update check. Compares HEAD against configured upstream
+ * remotes (`upstream/main` first, then `origin/main` as fallback) and
+ * reports the first one that has any behind commits. If all are at
+ * parity, status is `up-to-date`.
  */
 export async function checkForUpdates(): Promise<UpdateStatus> {
-  if (statusSignal().state === "checking") return statusSignal()
+  if (getStatusSignal()().state === "checking") return getStatusSignal()()
   setStatusSignal({ state: "checking" })
 
   try {
@@ -115,9 +135,11 @@ export async function checkForUpdates(): Promise<UpdateStatus> {
     }
 
     const candidates: Array<{ remote: string; branch: string }> = [
+      // The XiaomiMiMo fork is the source of truth for MiMoCode; if the
+      // user has renamed it locally (the common "upstream" convention),
+      // we use that. Otherwise origin is a fine fallback.
       { remote: "upstream", branch: "main" },
       { remote: "origin", branch: "main" },
-      { remote: "sst", branch: "dev" },
     ]
 
     // Check which remotes are configured.

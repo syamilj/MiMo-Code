@@ -18,6 +18,9 @@ import { win32DisableProcessedInput, win32InstallCtrlCGuard } from "./win32"
 import { Flag } from "@/flag/flag"
 import semver from "semver"
 import { checkForUpdates, updateStatusAccessor } from "../update"
+import { create as createLog } from "@/util/log"
+
+const log = createLog({ service: "tui.app" })
 import { DialogProvider, useDialog } from "@tui/ui/dialog"
 import { DialogMimoLogin } from "@tui/component/dialog-mimo-login"
 import { ErrorComponent } from "@tui/component/error-component"
@@ -376,12 +379,10 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         })
       }
     })
-    // Kick off a non-blocking upstream check; the sidebar indicator reads from
-    // the cached status via getUpdateStatus(), so a slow network never blocks
-    // the TUI from rendering. The cache itself becomes reactive because we
-    // wrap it in an accessor on the consumer side.
-    void checkForUpdates().catch(() => {
-      /* update check failures are non-fatal */
+    // Kick off a non-blocking upstream check; the sidebar indicator reads
+    // from the cached status, so a slow network never blocks the TUI.
+    void checkForUpdates().catch((err) => {
+      log.warn("checkForUpdates failed", { error: err })
     })
   })
 
