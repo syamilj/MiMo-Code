@@ -1,5 +1,6 @@
 import wasmPath from "../asset/ten_vad.wasm" with { type: "file" }
 import createVADModule from "../asset/ten_vad_loader.js"
+import * as fsp from "node:fs/promises"
 
 const HOP_SIZE = 256
 const VAD_SAMPLE_RATE = 16000
@@ -19,7 +20,7 @@ interface WasmModule {
 let modulePromise: Promise<WasmModule> | undefined
 
 async function loadModule(): Promise<WasmModule> {
-  const wasmBinary = await Bun.file(wasmPath).arrayBuffer()
+  const wasmBinary = await fsp.readFile(wasmPath).then((b) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength))
   const mod = await createVADModule({
     wasmBinary: new Uint8Array(wasmBinary),
     locateFile: () => wasmPath,

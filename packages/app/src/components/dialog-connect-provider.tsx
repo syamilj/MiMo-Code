@@ -32,6 +32,7 @@ export function DialogConnectProvider(props: { provider: string }) {
 
   const alive = { value: true }
   const timer = { current: undefined as ReturnType<typeof setTimeout> | undefined }
+  const refreshed = { value: false }
 
   onCleanup(() => {
     alive.value = false
@@ -64,6 +65,13 @@ export function DialogConnectProvider(props: { provider: string }) {
   )
   const loading = createMemo(() => auth.loading && !globalSync.data.provider_auth[props.provider])
   const methods = createMemo(() => auth.latest ?? globalSync.data.provider_auth[props.provider] ?? fallback())
+  createEffect(() => {
+    if (store.state === "complete" && alive.value && !refreshed.value) {
+      refreshed.value = true
+      globalSync.bootstrap()
+    }
+  })
+
   const [store, setStore] = createStore({
     methodIndex: undefined as undefined | number,
     authorization: undefined as undefined | ProviderAuthAuthorization,

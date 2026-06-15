@@ -269,10 +269,11 @@ export const layer = Layer.effect(
       return (yield* all()).map((tool) => tool.id)
     })
 
-    const describeSkill = Effect.fn("ToolRegistry.describeSkill")(function* (agent: Agent.Info) {
-      const list = yield* skill.available(agent)
-      if (list.length === 0) return "No skills are currently available."
-      return [
+    const describeSkill = (agent: Agent.Info) =>
+      Effect.gen(function* () {
+        const list = yield* skill.available(agent)
+        if (list.length === 0) return "No skills are currently available."
+        return [
         "Load a specialized skill that provides domain-specific instructions and workflows.",
         "",
         "When you recognize that a task matches one of the available skills listed below, use this tool to load the full skill instructions.",

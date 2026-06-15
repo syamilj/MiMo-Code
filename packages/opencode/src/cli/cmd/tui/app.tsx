@@ -17,6 +17,10 @@ import {
 import { win32DisableProcessedInput, win32InstallCtrlCGuard } from "./win32"
 import { Flag } from "@/flag/flag"
 import semver from "semver"
+import { checkForUpdates, updateStatusAccessor } from "../update"
+import { create as createLog } from "@/util/log"
+
+const log = createLog({ service: "tui.app" })
 import { DialogProvider, useDialog } from "@tui/ui/dialog"
 import { DialogMimoLogin } from "@tui/component/dialog-mimo-login"
 import { ErrorComponent } from "@tui/component/error-component"
@@ -27,6 +31,7 @@ import { SDKProvider, useSDK } from "@tui/context/sdk"
 import { StartupLoading } from "@tui/component/startup-loading"
 import { SyncProvider, useSync } from "@tui/context/sync"
 import { LocalProvider, useLocal } from "@tui/context/local"
+import { UpdateContext } from "@tui/context/update"
 import { DialogModel, useConnected } from "@tui/component/dialog-model"
 import { DialogMcp } from "@tui/component/dialog-mcp"
 import { DialogStatus } from "@tui/component/dialog-status"
@@ -195,7 +200,9 @@ export function tui(input: {
                                         <FrecencyProvider>
                                           <PromptHistoryProvider>
                                             <PromptRefProvider>
-                                              <App onSnapshot={input.onSnapshot} />
+                                              <UpdateContext.Provider value={{ status: updateStatusAccessor }}>
+                                                <App onSnapshot={input.onSnapshot} />
+                                              </UpdateContext.Provider>
                                             </PromptRefProvider>
                                           </PromptHistoryProvider>
                                         </FrecencyProvider>
@@ -330,19 +337,23 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     if (!terminalTitleEnabled() || Flag.MIMOCODE_DISABLE_TERMINAL_TITLE) return
 
     if (route.data.type === "home") {
-      renderer.setTerminalTitle("MiMoCode")
+      renderer.setTerminalTitle("🅼 MiMoCode")
       return
     }
 
     if (route.data.type === "session") {
       const session = sync.session.get(route.data.sessionID)
+      const status = sync.session.status(route.data.sessionID)
+      const hasQuestions = (sync.data.question[route.data.sessionID]?.length ?? 0) > 0
+      const statusIcon = hasQuestions ? "❓ " : status === "working" ? "🟢 " : ""
+
       if (!session || SessionApi.isDefaultTitle(session.title)) {
-        renderer.setTerminalTitle("MiMoCode")
+        renderer.setTerminalTitle(`${statusIcon}🅼 MiMoCode`)
         return
       }
 
       const title = session.title.length > 40 ? session.title.slice(0, 37) + "..." : session.title
-      renderer.setTerminalTitle(`MC | ${title}`)
+      renderer.setTerminalTitle(`${statusIcon}🅼 ${title}`)
       return
     }
 
@@ -371,6 +382,11 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
           sessionID: args.sessionID,
         })
       }
+    })
+    // Kick off a non-blocking upstream check; the sidebar indicator reads
+    // from the cached status, so a slow network never blocks the TUI.
+    void checkForUpdates().catch((err) => {
+      log.warn("checkForUpdates failed", { error: err })
     })
   })
 

@@ -1,3 +1,5 @@
+import * as fsp from "node:fs/promises"
+
 export type ImageProtocol = "kitty"
 
 export function detectImageProtocol(): ImageProtocol | undefined {
@@ -15,7 +17,7 @@ export const allocImageId = () => nextId++
 const CHUNK = 4096
 
 export async function kittyDisplay(opts: { id: number; filePath: string; cols: number; rows: number }) {
-  const b64 = Buffer.from(await Bun.file(opts.filePath).arrayBuffer()).toString("base64")
+  const b64 = Buffer.from(await fsp.readFile(opts.filePath)).toString("base64")
   const out: string[] = ["\x1b7\x1b[1;1H"]
   for (let i = 0; i < b64.length; i += CHUNK) {
     const chunk = b64.slice(i, i + CHUNK)

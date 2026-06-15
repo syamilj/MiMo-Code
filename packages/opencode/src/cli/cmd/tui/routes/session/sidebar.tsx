@@ -4,6 +4,7 @@ import { createMemo, Show } from "solid-js"
 import { useTheme } from "../../context/theme"
 import { useTuiConfig } from "../../context/tui-config"
 import { InstallationChannel, InstallationVersion } from "@/installation/version"
+import { useUpdate } from "@tui/context/update"
 import { TuiPluginRuntime } from "../../plugin"
 
 import { getScrollAcceleration } from "../../util/scroll"
@@ -13,6 +14,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const sync = useSync()
   const { theme } = useTheme()
   const tuiConfig = useTuiConfig()
+  const update = useUpdate()
   const session = createMemo(() => sync.session.get(props.sessionID))
   const workspaceStatus = () => {
     const workspaceID = session()?.workspaceID
@@ -81,15 +83,25 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
         </scrollbox>
 
         <box flexShrink={0} gap={1} paddingTop={1}>
-          <TuiPluginRuntime.Slot name="sidebar_footer" mode="single_winner" session_id={props.sessionID}>
-            <text fg={theme.textMuted}>
-              <span style={{ fg: theme.success }}>•</span> <b>Open</b>
-              <span style={{ fg: theme.text }}>
-                <b>Code</b>
-              </span>{" "}
-              <span>{InstallationVersion}</span>
-            </text>
-          </TuiPluginRuntime.Slot>
+          <text fg={theme.textMuted}>
+            <span style={{ fg: theme.success }}>•</span> <b>MiMo</b>
+            <span style={{ fg: theme.text }}>
+              <b>Code</b>
+            </span>{" "}
+            <span>{InstallationVersion}</span>
+            <Show when={update?.status()?.state === "behind"}>
+              <span style={{ fg: theme.warning }}> ● update available</span>
+            </Show>
+            <Show when={update?.status()?.state === "checking"}>
+              <span style={{ fg: theme.textMuted }}> ● checking…</span>
+            </Show>
+            <Show when={update?.status()?.state === "up-to-date"}>
+              <span style={{ fg: theme.success }}> ● up-to-date</span>
+            </Show>
+            <Show when={update?.status()?.state === "error"}>
+              <span style={{ fg: theme.error }}> ● check failed</span>
+            </Show>
+          </text>
         </box>
       </box>
     </Show>

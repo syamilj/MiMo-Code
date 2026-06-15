@@ -64,6 +64,18 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
 
   const tpsLabel = createMemo(() => formatTPS(tps()))
 
+  const cacheHitRate = createMemo(() => {
+    let cacheRead = 0
+    let totalInput = 0
+    for (const m of msg()) {
+      if (m.role !== "assistant") continue
+      const t = m.tokens
+      totalInput += t.input + t.cache.read + t.cache.write
+      cacheRead += t.cache.read
+    }
+    return totalInput > 0 ? Math.round((cacheRead / totalInput) * 100) : 0
+  })
+
   const state = createMemo(() => {
     const last = msg().findLast((item): item is AssistantMessage => item.role === "assistant" && item.tokens.output > 0)
     if (!last) {
@@ -88,9 +100,12 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
         <b>Context</b>
       </text>
       <text fg={theme().textMuted}>{state().tokens.toLocaleString()} tokens</text>
-      <text fg={theme().textMuted}>{state().percent ?? 0}% used</text>
+      <text fg={theme().textMuted}>
+        {state().percent !== null ? `${state().percent}% used` : "unknown limit"}
+      </text>
       <Show when={tpsLabel()}>{(label) => <text fg={theme().textMuted}>{label()}</text>}</Show>
       <text fg={theme().textMuted}>{money.format(cost())} spent</text>
+      <text fg={theme().textMuted}>{cacheHitRate()}% cache hit</text>
     </box>
   )
 }
